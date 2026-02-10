@@ -1,0 +1,63 @@
+name: CI/CD - Build & Publish
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1️⃣ Checkout du code
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      # 2️⃣ Configurer Node.js
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+          cache: "pnpm"
+
+      # 3️⃣ Installer pnpm globalement
+      - name: Install pnpm
+        run: npm install -g pnpm
+
+      # 4️⃣ Installer les dépendances
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # 5️⃣ Linter et formatter (optionnel)
+      - name: Lint & Format
+        run: |
+          pnpm lint || true
+          pnpm format --check
+
+      # 6️⃣ Build le projet
+      - name: Build
+        run: pnpm build
+
+      # 7️⃣ Déployer le build dans la branche lib
+      - name: Deploy to lib branch
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Créer une branche lib à partir de main si elle n'existe pas
+          if git show-ref --quiet refs/heads/lib; then
+            git checkout lib
+          else
+            git checkout -b lib
+          fi
+
+          # Copier le build dans la racine
+          rm -rf *
+          cp -r dist/* .
+
+          git add .
+          git commit -m "Update lib build [skip ci]" || echo "No changes to commit"
+          git push origin lib --force
